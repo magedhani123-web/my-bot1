@@ -1,0 +1,47 @@
+name: Run My Bot Forever
+
+on:
+  workflow_dispatch: # للتشغيل اليدوي
+  schedule:
+    - cron: '0 */6 * * *' # تشغيل تلقائي كل 6 ساعات كاحتياط
+
+permissions:
+  actions: write # ضروري للسماح للسكربت بإعادة تشغيل نفسه
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable tor xvfb
+          pip install selenium requests
+
+      - name: Configure and Start Tor
+        run: |
+          sudo bash -c 'echo -e "ControlPort 9051\nCookieAuthentication 0" >> /etc/tor/torrc'
+          sudo service tor start
+          sleep 5
+
+      - name: Start Bot
+        # أضفنا timeout لكي ينتهي قبل حد الـ 6 ساعات بـ 10 دقائق ويشغل نفسه من جديد
+        run: |
+          timeout 350m python bot_master1.py || echo "انتهى الوقت المحدد، جاري إعادة التشغيل الذاتي..."
+
+      - name: Self-Restart Workflow
+        if: always() # يشتغل سواء نجح البوت أو فشل لضمان الاستمرارية
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "🚀 جاري إرسال أمر إعادة التشغيل لضمان الوصول لـ 12 ساعة..."
+          gh workflow run run_bot.yml
