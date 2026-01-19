@@ -25,7 +25,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y google-chrome-stable tor xvfb
-          pip install selenium requests
+          pip install undetected_chromedriver selenium requests
 
       - name: Configure and Start Tor
         run: |
