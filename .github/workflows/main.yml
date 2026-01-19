@@ -21,31 +21,35 @@ jobs:
         with:
           python-version: '3.9'
 
-      - name: Install Chrome and Dependencies
+      - name: Install Google Chrome
+        run: |
+          wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+          sudo apt install -y ./google-chrome-stable_current_amd64.deb
+
+      - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y tor xvfb libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxrandr2 libgbm1 libasound2
+          # تم استخدام libasound2t64 لحل مشكلة التوافق مع Ubuntu 24.04
+          sudo apt-get install -y tor xvfb libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxrandr2 libgbm1 libasound2t64
           pip install undetected_chromedriver selenium requests
 
       - name: Configure and Start Tor
         run: |
           sudo service tor stop || true
-          # إعداد المنفذ 9051 للتحكم بتدوير الـ IP
           sudo bash -c 'echo -e "ControlPort 9051\nCookieAuthentication 0\nDataDirectory /var/lib/tor" > /etc/tor/torrc'
           sudo service tor start
           echo "⏳ Waiting for Tor to establish circuit..."
           sleep 20
 
       - name: Start Bot
-        # الجلسة تستمر 350 دقيقة ثم تغلق نفسها لتبدأ خطوة إعادة التشغيل
+        # تشغيل البوت لمدة 350 دقيقة (حوالي 5.8 ساعة)
         run: |
-          timeout 350m xvfb-run python -u bot_master1.py || echo "⚠️ Time limit reached, preparing next run..."
+          timeout 350m xvfb-run python -u bot_master1.py || echo "⚠️ الوقت انتهى، جاري التجهيز للجلسة التالية..."
 
       - name: Self-Restart Workflow
-        if: always() # يعمل حتى لو توقف السكربت بسبب خطأ أو انتهاء الوقت
+        if: always() # إعادة التشغيل حتى لو فشلت الخطوات السابقة
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           echo "🚀 Triggering self-restart..."
-          # التأكد من مطابقة الاسم "Run My Bot Forever" تماماً مع أول سطر في الملف
           gh workflow run "Run My Bot Forever"
