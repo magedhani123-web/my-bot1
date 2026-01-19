@@ -45,7 +45,7 @@ jobs:
       - name: Start Bot
         # استخدام -u يظهر السجل فوراً، و timeout يضمن إعادة التشغيل قبل الـ 6 ساعات
         run: |
-          timeout 350m xvfb-run python -u bot_master2.py || echo "⚠️ انتهت الجلسة، جاري التجهيز للجولة التالية..."
+          timeout 350m xvfb-run python -u bot_master1.py || echo "⚠️ انتهت الجلسة، جاري التجهيز للجولة التالية..."
 
       - name: Self-Restart Workflow
         if: always() 
