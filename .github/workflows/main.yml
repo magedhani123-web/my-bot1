@@ -1,12 +1,12 @@
-name: Run My Bot Forever0
+name: Run My Bot Forever
 
 on:
-  workflow_dispatch: # تشغيل يدوي
+  workflow_dispatch: # تشغيل يدوي من تبويب Actions
   schedule:
-    - cron: '0 */6 * * *' # تشغيل تلقائي كل 6 ساعات
+    - cron: '0 */6 * * *' # تشغيل تلقائي كل 6 ساعات كاحتياط
 
 permissions:
-  actions: write # ضروري لإعادة التشغيل الذاتي
+  actions: write # إذن أساسي ليتمكن البوت من إعادة تشغيل نفسه
 
 jobs:
   build:
@@ -21,37 +21,31 @@ jobs:
         with:
           python-version: '3.9'
 
-      - name: Install dependencies
+      - name: Install Chrome and Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y google-chrome-stable tor xvfblibnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxrandr2 libgbm1 libasound2 libpango-1.0-0 libpangocairo-1.0-0
+          sudo apt-get install -y tor xvfb libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxrandr2 libgbm1 libasound2
           pip install undetected_chromedriver selenium requests
-          wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && sudo apt install ./google-chrome-stable_current_amd64.deb
 
       - name: Configure and Start Tor
         run: |
-          # إيقاف أي عملية سابقة لضمان بداية نظيفة
           sudo service tor stop || true
-          
-          # إعداد ملف الكونفيج بشكل يضمن فتح المنفذ 9051
+          # إعداد المنفذ 9051 للتحكم بتدوير الـ IP
           sudo bash -c 'echo -e "ControlPort 9051\nCookieAuthentication 0\nDataDirectory /var/lib/tor" > /etc/tor/torrc'
-          
-          # تشغيل الخدمة
           sudo service tor start
-          
-          # ⚠️ التغيير المهم: ننتظر 20 ثانية بدلاً من 5 لضمان جاهزية Tor
           echo "⏳ Waiting for Tor to establish circuit..."
           sleep 20
 
       - name: Start Bot
-        # استخدام -u يظهر السجل فوراً، و timeout يضمن إعادة التشغيل قبل الـ 6 ساعات
+        # الجلسة تستمر 350 دقيقة ثم تغلق نفسها لتبدأ خطوة إعادة التشغيل
         run: |
-          timeout 350m xvfb-run python -u bot_master1.py || echo "⚠️ انتهت الجلسة، جاري التجهيز للجولة التالية..."
+          timeout 350m xvfb-run python -u bot_master1.py || echo "⚠️ Time limit reached, preparing next run..."
 
       - name: Self-Restart Workflow
-        if: always() 
+        if: always() # يعمل حتى لو توقف السكربت بسبب خطأ أو انتهاء الوقت
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          echo "🚀 أمر التشغيل الذاتي: لن يتوقف البوت أبداً!"
+          echo "🚀 Triggering self-restart..."
+          # التأكد من مطابقة الاسم "Run My Bot Forever" تماماً مع أول سطر في الملف
           gh workflow run "Run My Bot Forever"
