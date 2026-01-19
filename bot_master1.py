@@ -73,12 +73,17 @@ def run_advanced_session(session_num):
     print(f"🌐 Loading: {video_url}")
 
     options = uc.ChromeOptions()
-    profile_dir = os.path.abspath(f"linux_profile_{session_num % 10}") # تدوير البروفايلات لتوفير المساحة
+    profile_dir = os.path.abspath(f"linux_profile_{session_num % 10}") 
     
     options.add_argument(f'--user-data-dir={profile_dir}')
     options.add_argument(f'--user-agent={dev["ua"]}')
     options.add_argument(f'--proxy-server={TOR_PROXY}')
     options.add_argument(f"--window-size={dev['w']},{dev['h']}")
+    
+    # الإضافات الجديدة لتحسين التوافق وحل أخطاء Linux
+    options.add_argument('--remote-debugging-port=9222')
+    options.add_argument('--disable-setuid-sandbox')
+    options.add_argument('--disable-extensions')
     
     options.add_argument('--headless') 
     options.add_argument('--no-sandbox')
@@ -131,7 +136,6 @@ def run_advanced_session(session_num):
 if __name__ == "__main__":
     os.system("pkill -f chrome")
     print("🔥 بدأ السكربت العملاق (هدف: مليون مشاهدة)...")
-    # تم الضبط ليعمل مليون مرة
     for i in range(1, 1000001):
         run_advanced_session(i)
         delay = random.randint(5, 15)
