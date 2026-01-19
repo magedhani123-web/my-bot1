@@ -6,42 +6,52 @@ on:
     - cron: '0 */6 * * *' # تشغيل تلقائي كل 6 ساعات كاحتياط
 
 permissions:
-  actions: write # ضروري جداً ليتمكن السكربت من إعادة تشغيل نفسه
+  actions: write # منح صلاحية للسيرفر لفتح جلسات جديدة تلقائياً
 
 jobs:
   build:
     runs-on: ubuntu-latest
     
     steps:
+      # 1. سحب الكود من المستودع
       - name: Checkout code
         uses: actions/checkout@v3
 
+      # 2. إعداد بيئة بايثون
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
 
+      # 3. تثبيت المتطلبات (متصفح كروم، تور، ومحاكي الشاشة)
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y google-chrome-stable tor xvfb
           pip install selenium requests
 
+      # 4. إعداد Tor بشكل احترافي لضمان فتح الـ ControlPort
       - name: Configure and Start Tor
         run: |
-          sudo bash -c 'echo -e "ControlPort 9051\nCookieAuthentication 0" >> /etc/tor/torrc'
+          sudo service tor stop || true
+          # إعداد ملف torrc للسماح بتغيير الـ IP برمجياً
+          sudo bash -c 'echo -e "ControlPort 9051\nCookieAuthentication 0\nDataDirectory /var/lib/tor" > /etc/tor/torrc'
           sudo service tor start
-          sleep 5
+          echo "⏳ Waiting for Tor to be ready..."
+          sleep 20 # وقت إضافي لضمان عمل تور بنسبة 100%
 
+      # 5. تشغيل البوت مع ظهور السجل (Log) فوراً
       - name: Start Bot
-        # أضفنا -u لضمان ظهور السجل (Log) فوراً سطر بسطر
         run: |
-          timeout 350m xvfb-run python -u bot_master1.py || echo "⚠️ انتهى وقت الجلسة، جاري إعادة التشغيل التلقائي..."
+          # نستخدم -u لظهور السجل فوراً و timeout لإغلاقه قبل حد الـ 6 ساعات ليعيد تشغيل نفسه
+          # تأكد أن اسم ملفك هو bot_master2.py (أو عدله هنا إذا كان مختلفاً)
+          timeout 350m xvfb-run python -u bot_master2.py || echo "⚠️ انتهت الجلسة الحالية، جاري الانتقال للجلسة التالية..."
 
+      # 6. إعادة التشغيل الذاتي (السر في الـ 12 ساعة)
       - name: Self-Restart Workflow
-        if: always() # يشتغل حتى لو تعطل البوت لضمان استمرار الـ 12 ساعة
+        if: always() # يعمل في كل الحالات (نجاح أو فشل) لضمان الاستمرارية
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          echo "🚀 جاري طلب جلسة جديدة من GitHub Actions..."
+          echo "🚀 جاري تشغيل جلسة جديدة لضمان الاستمرار دون توقف..."
           gh workflow run "Run My Bot Forever"
