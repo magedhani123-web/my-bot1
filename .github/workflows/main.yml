@@ -3,65 +3,69 @@ name: Run My Bot Forever
 on:
   workflow_dispatch: # تشغيل يدوي
   schedule:
-    - cron: '0 */6 * * *' # تشغيل تلقائي كاحتياط كل 6 ساعات
+    - cron: '0 */6 * * *' # تشغيل تلقائي كل 6 ساعات كاحتياط
 
 permissions:
-  actions: write # ضروري جداً لإعادة التشغيل الذاتي
+  actions: write # ضروري جداً ليتمكن البوت من إعادة تشغيل نفسه
 
 jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      PYTHONUNBUFFERED: "1"
-      # تخصيص ذاكرة أكبر للمعالجة
-      NODE_OPTIONS: "--max-old-space-size=4096"
+      PYTHONUNBUFFERED: "1" # لضمان ظهور النتائج (Print) فوراً في السجل
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+
+      - name: Maximize System Resources (RAM Boost)
+        # هذا الجزء يحرر مساحة ويخلق ذاكرة افتراضية (Swap) تصل لـ 12 جيجا
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost /usr/local/lib/android
+          sudo fallocate -l 12G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          sudo sysctl vm.swappiness=10
+          echo "🚀 تم زيادة الرام الافتراضي وتحرير المعالج"
 
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
 
-      - name: Maximize CPU Performance
-        run: |
-          # تحسين أداء المعالج للسيرفر
-          sudo sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="/&mitigations=off /' /etc/default/grub || true
-          echo "🚀 CPU Optimized"
-
-      - name: Install Google Chrome Stable
+      - name: Install Google Chrome & System Dependencies
         run: |
           sudo apt-get update
           wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
           sudo apt install -y ./google-chrome-stable_current_amd64.deb
-
-      - name: Install System Dependencies
-        run: |
-          sudo apt-get update
-          # تثبيت المكتبات الصوتية والرسومية المتوافقة مع الإصدار الجديد
+          # تثبيت Tor و مكتبات الواجهة الرسومية والصوت
           sudo apt-get install -y tor xvfb libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxrandr2 libgbm1 libasound2t64 ffmpeg
+
+      - name: Install Python Packages
+        run: |
           pip install undetected_chromedriver selenium requests
 
       - name: Configure and Start Tor
         run: |
           sudo service tor stop || true
+          # إعداد Tor لفتح منفذ التحكم (ControlPort) لتبديل الـ IP
           sudo bash -c 'echo -e "ControlPort 9051\nCookieAuthentication 0\nDataDirectory /var/lib/tor" > /etc/tor/torrc'
           sudo service tor start
-          echo "⏳ Waiting for Tor..."
+          echo "⏳ جاري انتظار استقرار اتصال Tor..."
           sleep 20
 
-      - name: Start Bot (High Performance & GUI Fix)
+      - name: Start Bot (High Performance Mode)
+        # استخدام xvfb-run لعمل شاشة وهمية + timeout للإغلاق قبل حد الـ 6 ساعات
         run: |
-          # الحل النهائي لخطأ cannot connect to chrome عبر تهيئة DISPLAY وشاشة وهمية ثابتة
           export DISPLAY=:99
-          timeout 350m xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24 -ac +extension GLX +render -noreset" python -u bot_master1.py || echo "⚠️ Session limit reached or ended"
+          # timeout 350m تعني العمل لمدة 5 ساعات و 50 دقيقة ثم الإغلاق لبدء دورة جديدة
+          timeout 350m xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24 -ac +extension GLX +render -noreset" python -u bot_master1.py || echo "⚠️ انتهت الدورة الحالية، جاري إعادة التشغيل..."
 
       - name: Self-Restart Workflow
-        if: always() # يضمن إعادة التشغيل حتى لو فشل البوت
+        if: always() # إعادة التشغيل حتى لو حدث خطأ في السكربت
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          echo "🚀 Triggering self-restart..."
+          echo "🚀 بدء عملية التشغيل الذاتي للأبد..."
           gh workflow run "Run My Bot Forever"
