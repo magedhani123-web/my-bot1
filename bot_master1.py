@@ -65,10 +65,8 @@ def get_geo_data():
 def apply_stealth_js(driver, device, geo):
     cpu_cores = random.choice([2, 4, 6, 8, 12])
     ram_gb = random.choice([4, 8, 12, 16, 32])
-    
     batt_level = round(random.uniform(0.15, 0.98), 2)
     is_charging = random.choice(["true", "false"])
-    
     lang = geo['countryCode'].lower() if geo else "en"
     tz = geo['timezone'] if geo else "UTC"
     lat = geo['lat'] if geo else 0.0
@@ -77,40 +75,37 @@ def apply_stealth_js(driver, device, geo):
     js_code = f"""
     Object.defineProperty(navigator, 'hardwareConcurrency', {{get: () => {cpu_cores}}});
     Object.defineProperty(navigator, 'deviceMemory', {{get: () => {ram_gb}}});
-
     const getParam = WebGLRenderingContext.prototype.getParameter;
     WebGLRenderingContext.prototype.getParameter = function(p) {{
         if (p === 37445) return 'Google Inc. (NVIDIA)';
         if (p === 37446) return '{device["gpu"]}';
         return getParam.apply(this, arguments);
     }};
-    
     if (navigator.getBattery) {{
         navigator.getBattery = () => Promise.resolve({{
             charging: {is_charging}, level: {batt_level}, chargingTime: 0, dischargingTime: Infinity
         }});
     }}
-    
     Object.defineProperty(navigator, 'language', {{get: () => '{lang}-{lang.upper()}'}});
     Object.defineProperty(navigator, 'languages', {{get: () => ['{lang}-{lang.upper()}', '{lang}']}});
-    
     if (Intl) {{
         Intl.DateTimeFormat.prototype.resolvedOptions = function() {{
             return {{ timeZone: '{tz}', calendar: 'gregory', numberingSystem: 'latn', locale: '{lang}-{lang.upper()}' }};
         }};
     }}
-
     navigator.geolocation.getCurrentPosition = (success) => success({{
         coords: {{ latitude: {lat}, longitude: {lon}, accuracy: 100 }}
     }});
-
     Object.defineProperty(navigator, 'platform', {{get: () => '{device["plat"]}'}});
     Object.defineProperty(navigator, 'webdriver', {{get: () => undefined}});
     """
     driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {"source": js_code})
 
 def run_session(session_num):
+    # تنظيف أي عمليات عالقة قبل البدء
     os.system("pkill -f chrome 2>/dev/null || true")
+    os.system("pkill -f chromedriver 2>/dev/null || true")
+    
     renew_tor_ip()
     current_ip = get_current_ip()
     geo = get_geo_data()
@@ -120,23 +115,26 @@ def run_session(session_num):
     print(f"\n🚀 جلسة #{session_num} | IP: {current_ip} ({geo['country'] if geo else 'Unknown'})")
     print(f"💻 جهاز: {device['name']} | لغة: {geo['countryCode'] if geo else '??'} | توقيت: {geo['timezone'] if geo else '??'}")
     
-    profile_dir = tempfile.mkdtemp(prefix="imp_final_")
+    # تحويل مسار المجلد المؤقت إلى مسار مطلق لضمان الصلاحيات
+    profile_dir = os.path.abspath(f"imp_final_profile_{random.randint(1000, 9999)}")
+    
     options = uc.ChromeOptions()
     options.add_argument(f'--user-data-dir={profile_dir}')
     options.add_argument(f'--user-agent={device["ua"]}')
     options.add_argument(f'--proxy-server={TOR_PROXY}')
     options.add_argument(f"--window-size={device['w']},{device['h']}")
-    options.add_argument('--headless')
-    options.add_argument('--mute-audio')
     
-    # الإضافات الجديدة المطلوبة
-    options.add_argument('--no-sandbox') 
-    options.add_argument('--disable-dev-shm-usage') 
-    options.add_argument('--disable-gpu') 
-    options.add_argument('--remote-debugging-port=9222') 
+    # الإعدادات لضمان التشغيل في بيئة Linux/GitHub
+    options.add_argument('--headless')
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_argument('--disable-gpu')
+    options.add_argument('--mute-audio')
+    # تعيين منفذ التصحيح
+    options.add_argument('--remote-debugging-port=9222')
 
     try:
-        # تشغيل المتصفح بالإعدادات المحدثة
+        # التشغيل باستخدام subprocess=True
         driver = uc.Chrome(options=options, use_subprocess=True)
         apply_stealth_js(driver, device, geo)
         wait = WebDriverWait(driver, 30)
@@ -158,7 +156,6 @@ def run_session(session_num):
             driver.get(f"https://www.youtube.com/watch?v={video['id']}")
 
         wait.until(EC.presence_of_element_located((By.TAG_NAME, "video")))
-        
         driver.execute_script("document.querySelector('video').playbackRate = 1.0; document.querySelector('video').play();")
         
         time.sleep(random.randint(10, 20))
@@ -174,14 +171,15 @@ def run_session(session_num):
                 time.sleep(random.randint(15, 20))
         except: pass
 
-        print(f"✅ اكتملت الجلسة بتطابق كامل للبيانات.")
+        print(f"✅ اكتملت الجلسة بنجاح.")
     except Exception as e:
         print(f"❌ خطأ: {str(e)[:50]}")
     finally:
         try:
             driver.quit()
         except: pass
-        shutil.rmtree(profile_dir, ignore_errors=True)
+        if os.path.exists(profile_dir):
+            shutil.rmtree(profile_dir, ignore_errors=True)
 
 if __name__ == "__main__":
     for i in range(1, MAX_SESSIONS + 1):
